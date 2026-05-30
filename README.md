@@ -1,7 +1,9 @@
 # Legacy 연동 LLM Gateway PoC
 
+## 개요
 사내망/공공망/레거시 시스템 환경을 가정한 **LLM Gateway 개인 기술검증 포트폴리오**입니다. LLM 추론 서버와 레거시(ERP/PDM/Groupware) 데이터를 연결하는 게이트웨이 계층을 FastAPI 중심으로 구현했습니다.
 
+## 목적
 이 프로젝트의 목적은 LLM 추론 서버 연동, FastAPI, SSE/WebSocket 스트리밍, Redis 캐싱, Celery 비동기 작업, JWT/RBAC, 감사 로그, Prometheus/Grafana 모니터링, Docker Compose 운영 구성을 실제 코드로 검증하는 것입니다.
 
 ## 시스템 아키텍처
@@ -68,7 +70,7 @@ docker compose exec ollama ollama pull llama3.2
 docker compose ps
 ```
 
-`api`, `worker`, `legacy-mock-service`, `postgres`, `redis`, `prometheus`, `grafana`, `ollama` 컨테이너가 실행 중이면 기본 구성이 올라온 상태입니다.
+`docker compose ps` 결과에서 주요 컨테이너가 `Up` 상태이면 전체 서비스가 정상적으로 시작된 상태입니다.
 
 API 응답까지 확인하려면 다음 명령을 사용합니다.
 
