@@ -1,0 +1,412 @@
+{
+  "info": {
+    "_postman_id": "7f1d4217-34a9-4c16-8f5d-7a2e51d7fce9",
+    "name": "Legacy 연동 LLM Gateway PoC",
+    "description": "FastAPI 기반 LLM Gateway HTTP API 문서입니다.\n\n## 실행 전제\n- `docker compose up --build`\n- `docker compose exec ollama ollama pull llama3.2`\n- FastAPI: `{{BASE_URL}}`\n- Legacy Mock Service: `{{LEGACY_URL}}`\n- Prometheus: `{{PROMETHEUS_URL}}`\n- Grafana: `{{GRAFANA_URL}}`\n\n## 인증\n- USER: `user / user-pass`\n- ADMIN: `admin / admin-pass`\n\n## 권장 테스트 순서\n1. Auth API / Login USER\n2. Auth API / Login ADMIN\n3. System API / Health Check\n4. Chat API / Chat - Basic\n5. Chat API / Chat - With Legacy Context\n6. Chat API / Chat Stream - SSE\n7. Async Jobs API / Create Chat Job\n8. Async Jobs API / Get Chat Job Status\n9. Async Jobs API / Create Chat Job - Cache Hit\n10. Admin API / Get Audit Logs\n11. Admin API / Access Denied - USER tries Admin API\n12. System API / Metrics\n\nWebSocket API는 Postman Public Docs에서 실행하지 않고 README의 WebSocket 테스트 방법으로 확인합니다.\n\n모든 legacy 데이터는 포트폴리오용 mock data이며 실제 회사/기관/운영 데이터를 포함하지 않습니다.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "System API",
+      "item": [
+        {
+          "name": "Health Check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{BASE_URL}}/health",
+            "description": "FastAPI Gateway가 실행 중인지 확인합니다.\n\n예상 결과:\n- `200 OK`\n- `{\"status\":\"ok\"}`"
+          }
+        },
+        {
+          "name": "Metrics",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{BASE_URL}}/metrics",
+            "description": "Prometheus가 수집할 metrics 응답을 확인합니다.\n\n응답에 포함되는 주요 지표:\n- `http_requests_total`\n- `llm_requests_total`\n- `cache_hits_total`\n- `audit_events_total`\n- `websocket_connections_total`"
+          }
+        },
+        {
+          "name": "Prometheus UI",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{PROMETHEUS_URL}}",
+            "description": "Prometheus UI 접속 확인용입니다. Postman보다 브라우저에서 확인하는 것을 권장합니다."
+          }
+        },
+        {
+          "name": "Grafana UI",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{GRAFANA_URL}}",
+            "description": "Grafana UI 접속 확인용입니다. 브라우저에서 `admin / admin`으로 로그인 후 `Dashboards -> LLM Gateway -> LLM Gateway Overview`를 확인합니다."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Auth API",
+      "item": [
+        {
+          "name": "Login USER",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('login user returns token', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.access_token).to.be.a('string').and.not.empty;",
+                  "  pm.environment.set('TOKEN', body.access_token);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"user\",\n  \"password\": \"user-pass\"\n}"
+            },
+            "url": "{{BASE_URL}}/api/v1/auth/login",
+            "description": "USER 계정으로 로그인합니다. 로그인에 성공하면 이후 USER 권한 API 호출에 사용할 JWT 토큰이 자동으로 저장됩니다."
+          }
+        },
+        {
+          "name": "Login ADMIN",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('login admin returns token', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.access_token).to.be.a('string').and.not.empty;",
+                  "  pm.environment.set('ADMIN_TOKEN', body.access_token);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"admin\",\n  \"password\": \"admin-pass\"\n}"
+            },
+            "url": "{{BASE_URL}}/api/v1/auth/login",
+            "description": "ADMIN 계정으로 로그인합니다. 로그인에 성공하면 관리자 API 호출에 사용할 JWT 토큰이 자동으로 저장됩니다."
+          }
+        },
+        {
+          "name": "Login Failure",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"user\",\n  \"password\": \"wrong\"\n}"
+            },
+            "url": "{{BASE_URL}}/api/v1/auth/login",
+            "description": "잘못된 비밀번호로 로그인했을 때 실패 응답과 감사 로그 기록을 확인합니다.\n\n예상 결과:\n- `401 Unauthorized`"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Chat API",
+      "auth": {
+        "type": "bearer",
+        "bearer": [
+          {
+            "key": "token",
+            "value": "{{TOKEN}}",
+            "type": "string"
+          }
+        ]
+      },
+      "item": [
+        {
+          "name": "Chat - Basic",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"prompt\": \"Mock ERP 주문 상태 데이터를 한 문장으로 요약해줘.\"\n}"
+            },
+            "url": "{{BASE_URL}}/api/v1/chat",
+            "description": "USER 권한으로 일반 Chat API를 호출합니다.\n\n예상 결과:\n- `200 OK`\n- LLM 제공자와 응답 본문 반환\n\n참고:\n- Ollama가 실행 중이지 않으면 `503 Service Unavailable`이 반환됩니다."
+          }
+        },
+        {
+          "name": "Chat - With Legacy Context",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"message\": \"이 주문과 부품 정보를 바탕으로 처리 리스크를 요약해줘\",\n  \"context_sources\": [\n    {\n      \"type\": \"ERP_ORDER\",\n      \"id\": \"ORD-1001\"\n    },\n    {\n      \"type\": \"PDM_PART\",\n      \"id\": \"PART-2001\"\n    },\n    {\n      \"type\": \"GROUPWARE_USER\",\n      \"id\": \"USER-3001\"\n    }\n  ]\n}"
+            },
+            "url": "{{BASE_URL}}/api/v1/chat",
+            "description": "`context_sources`에 지정한 ERP/PDM/Groupware mock 데이터를 조회한 뒤, 그 내용을 질문에 함께 넣어 Chat API를 호출합니다.\n\n예상 결과:\n- LLM 응답 생성\n- legacy service 장애 또는 ID 미존재 시 경고 문구를 포함하고 요청은 계속 처리"
+          }
+        },
+        {
+          "name": "Chat - Legacy Missing Fallback",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"message\": \"없는 주문 정보도 포함해서 리스크를 요약해줘\",\n  \"context_sources\": [\n    {\n      \"type\": \"ERP_ORDER\",\n      \"id\": \"ORD-9999\"\n    }\n  ]\n}"
+            },
+            "url": "{{BASE_URL}}/api/v1/chat",
+            "description": "존재하지 않는 legacy ID를 요청했을 때 Chat API 전체가 실패하지 않고 경고 문구를 포함하는지 확인합니다."
+          }
+        },
+        {
+          "name": "Chat Stream - SSE",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "text/event-stream"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"prompt\": \"Mock PDM 변경 이력을 짧게 요약해줘.\"\n}"
+            },
+            "url": "{{BASE_URL}}/api/v1/chat/stream",
+            "description": "LLM 응답을 SSE 방식으로 실시간 스트리밍합니다.\n\n예상 응답:\n```text\nevent: token\ndata: {\"token\":\"...\"}\n\nevent: done\ndata: {\"provider\":\"ollama\"}\n```\n\nOllama 호출에 실패하면 SSE `error` 이벤트가 반환됩니다."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Async Jobs API",
+      "auth": {
+        "type": "bearer",
+        "bearer": [
+          {
+            "key": "token",
+            "value": "{{TOKEN}}",
+            "type": "string"
+          }
+        ]
+      },
+      "item": [
+        {
+          "name": "Create Chat Job",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('job created', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.job_id).to.be.a('string').and.not.empty;",
+                  "  pm.environment.set('JOB_ID', body.job_id);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"prompt\": \"Mock ERP 주문 상태 데이터를 요약해줘.\",\n  \"context\": {\n    \"source\": \"postman\"\n  }\n}"
+            },
+            "url": "{{BASE_URL}}/api/v1/jobs/chat",
+            "description": "Celery worker가 처리할 비동기 Chat 작업을 생성합니다. 생성된 job ID는 이후 상태 조회 요청에서 자동으로 사용됩니다."
+          }
+        },
+        {
+          "name": "Get Chat Job Status",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{BASE_URL}}/api/v1/jobs/{{JOB_ID}}",
+            "description": "생성한 비동기 Chat 작업의 처리 상태를 조회합니다.\n\n가능한 상태:\n- `PENDING`\n- `STARTED`\n- `SUCCESS`\n- `FAILURE`"
+          }
+        },
+        {
+          "name": "Create Chat Job - Cache Hit",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"prompt\": \"Mock ERP 주문 상태 데이터를 요약해줘.\",\n  \"context\": {\n    \"source\": \"postman\"\n  }\n}"
+            },
+            "url": "{{BASE_URL}}/api/v1/jobs/chat",
+            "description": "동일한 prompt/context로 다시 요청해 Redis 캐시가 사용되는지 확인합니다.\n\n첫 번째 작업이 성공한 뒤 실행하면 예상 결과:\n- `status`: `SUCCESS`\n- `cache_hit`: `true`"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Legacy API",
+      "auth": {
+        "type": "bearer",
+        "bearer": [
+          {
+            "key": "token",
+            "value": "{{TOKEN}}",
+            "type": "string"
+          }
+        ]
+      },
+      "item": [
+        {
+          "name": "Gateway - ERP Order",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{BASE_URL}}/api/v1/legacy/erp/orders/ORD-1001",
+            "description": "FastAPI Gateway를 통해 Spring Boot legacy mock ERP 주문 데이터를 조회합니다."
+          }
+        },
+        {
+          "name": "Gateway - PDM Part",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{BASE_URL}}/api/v1/legacy/pdm/parts/PART-2001",
+            "description": "FastAPI Gateway를 통해 Spring Boot legacy mock PDM 부품 데이터를 조회합니다."
+          }
+        },
+        {
+          "name": "Gateway - Groupware User",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{BASE_URL}}/api/v1/legacy/groupware/users/USER-3001",
+            "description": "FastAPI Gateway를 통해 Spring Boot legacy mock Groupware 사용자 데이터를 조회합니다."
+          }
+        },
+        {
+          "name": "Direct Legacy Service - ERP Order",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{LEGACY_URL}}/api/v1/legacy/erp/orders/ORD-1001",
+            "description": "Spring Boot legacy-mock-service를 직접 호출해 ERP 주문 mock 데이터를 확인합니다."
+          }
+        },
+        {
+          "name": "Direct Legacy Service - Health",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{LEGACY_URL}}/actuator/health",
+            "description": "Spring Boot legacy-mock-service가 실행 중인지 확인합니다."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Admin API",
+      "item": [
+        {
+          "name": "Get Audit Logs",
+          "auth": {
+            "type": "bearer",
+            "bearer": [
+              {
+                "key": "token",
+                "value": "{{ADMIN_TOKEN}}",
+                "type": "string"
+              }
+            ]
+          },
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{BASE_URL}}/api/v1/admin/audit-logs",
+            "description": "ADMIN 권한으로 PostgreSQL에 저장된 감사 로그를 조회합니다."
+          }
+        },
+        {
+          "name": "Access Denied - USER tries Admin API",
+          "auth": {
+            "type": "bearer",
+            "bearer": [
+              {
+                "key": "token",
+                "value": "{{TOKEN}}",
+                "type": "string"
+              }
+            ]
+          },
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{BASE_URL}}/api/v1/admin/audit-logs",
+            "description": "USER 권한으로 관리자 API를 호출했을 때 접근이 거부되는지 확인합니다. 이 실패도 감사 로그에 기록됩니다.\n\n예상 결과:\n- `403 Forbidden`"
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+.env
+.venv/
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+*.pyc
+*.egg-info/
+.DS_Store
+.gradle/
+build/
+postgres-data/
+redis-data/
+ollama-data/
