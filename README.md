@@ -12,16 +12,12 @@
 
 ## 핵심 요약
 
-- FastAPI 기반 LLM Gateway API 구현
-- Ollama LLM 제공자 연동 및 vLLM/OpenAI 호환 제공자 확장 가능 구조
-- 일반 응답, SSE 스트리밍, WebSocket 스트리밍 지원
-- Spring Boot 기반 Mock ERP/PDM/Groupware API 제공
-- `context_sources` 기반 레거시 mock 데이터와 프롬프트 context 합성
-- Redis 기반 프롬프트/context 캐시
-- Celery 기반 비동기 LLM 작업 처리
-- JWT 인증, USER/ADMIN RBAC, PostgreSQL 감사 로그 저장
-- Prometheus 지표 수집, Grafana 대시보드 시각화
-- Docker Compose 기반 전체 서비스 로컬 실행 환경
+- 사내 ERP/PDM/Groupware 데이터를 LLM 답변에 활용하는 게이트웨이 PoC
+- FastAPI 게이트웨이와 Spring Boot 가상 레거시 서비스를 분리 구성
+- 일반 응답, SSE 스트리밍, WebSocket 스트리밍, Celery 비동기 작업 처리 지원
+- Redis로 LLM 응답 재사용과 비동기 작업 관리 구성
+- JWT 인증, 역할 기반 권한 제어, PostgreSQL 감사 로그, Prometheus/Grafana 모니터링 적용
+- Docker Compose로 FastAPI, Spring Boot, Ollama, Redis, PostgreSQL, Prometheus, Grafana 통합 실행
 
 ## 구현 범위
 
