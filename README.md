@@ -34,21 +34,21 @@
 | 모니터링 | Prometheus 지표 수집, Grafana 대시보드 |
 | 실행 환경 | Docker Compose 기반 로컬 통합 실행 |
 
-## 기술별 역할
+## 기술 선택 이유
 
-| 기술 | 역할 |
+| 기술 | 선택 이유 |
 | --- | --- |
-| FastAPI | LLM Gateway의 HTTP/SSE/WebSocket API 계층 구성, 비동기 요청 처리 검증 |
-| Ollama | 로컬 LLM 추론 서버 연동, 일반 응답과 토큰 스트리밍 응답 검증 |
-| SSE | HTTP 연결 기반 단방향 토큰 스트리밍 응답 제공 |
-| WebSocket | 연결 유지 기반 실시간 메시지 송수신 구조 검증 |
-| Redis | LLM 응답 캐싱, Celery broker, Celery result backend 역할 수행 |
-| Celery | 장시간 LLM 요청의 비동기 처리, job 생성/상태 조회 구조 구현 |
-| PostgreSQL | 감사 로그 영속 저장, 요청 이력 추적 기반 구성 |
-| JWT/RBAC | USER/ADMIN 역할별 접근 제어, 권한 실패 감사 로그 검증 |
-| Spring Boot | Mock ERP/PDM/Groupware 서비스 분리, 외부 레거시 시스템 호출 구조 모사 |
+| FastAPI | Python LLM 생태계 연동, 비동기 HTTP/SSE/WebSocket API 구성 |
+| Ollama | 외부 API 키 없는 로컬 LLM 추론 서버 연동 검증 |
+| SSE | HTTP 기반 단방향 토큰 스트리밍 제공 |
+| WebSocket | 연결 유지 기반 양방향 실시간 채팅 구조 검증 |
+| Redis | LLM 응답 캐시, Celery broker, 결과 저장소를 하나의 경량 인프라로 구성 |
+| Celery | 오래 걸리는 LLM 요청을 API 요청 처리와 분리하고 작업 상태 조회 제공 |
+| PostgreSQL | 로그인, 권한 실패, LLM 요청 등 감사 로그 영속 저장 |
+| JWT/RBAC | 사용자 인증과 USER/ADMIN 역할 기반 접근 제어 |
+| Spring Boot | Java/Spring 기반 레거시 시스템 연동 상황을 별도 서비스로 재현 |
 | Prometheus/Grafana | API/LLM/캐시/감사 로그/WebSocket 지표 수집 및 시각화 |
-| Docker Compose | FastAPI, Spring Boot, Redis, PostgreSQL, Ollama, Prometheus, Grafana 통합 실행 환경 구성 |
+| Docker Compose | 여러 서비스를 한 번에 실행하는 로컬 통합 환경 구성 |
 
 ## 실행 방법
 
