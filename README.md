@@ -12,33 +12,43 @@
 
 ## 핵심 요약
 
-- FastAPI 기반 LLM Gateway API
-- Ollama LLM 제공자 연동 및 추후 vLLM/OpenAI 호환 제공자로 확장 가능한 구조
+- FastAPI 기반 LLM Gateway API 구현
+- Ollama LLM 제공자 연동 및 vLLM/OpenAI 호환 제공자 확장 가능 구조
 - 일반 응답, SSE 스트리밍, WebSocket 스트리밍 지원
-- Spring Boot 기반 `legacy-mock-service`로 Mock ERP/PDM/Groupware API 제공
-- `context_sources`를 통한 레거시 mock 데이터와 프롬프트 context 합성
+- Spring Boot 기반 Mock ERP/PDM/Groupware API 제공
+- `context_sources` 기반 레거시 mock 데이터와 프롬프트 context 합성
 - Redis 기반 프롬프트/context 캐시
 - Celery 기반 비동기 LLM 작업 처리
 - JWT 인증, USER/ADMIN RBAC, PostgreSQL 감사 로그 저장
 - Prometheus 지표 수집, Grafana 대시보드 시각화
-- Docker Compose로 API, worker, Redis, PostgreSQL, Prometheus, Grafana, Legacy Mock Service 실행
+- Docker Compose 기반 전체 서비스 로컬 실행 환경
 
-## 기술 역량 매핑
+## 구현 범위
 
-| 기술 | 구현 내용 | 주요 위치 |
-| --- | --- | --- |
-| LLM 추론 서버 연동 | Ollama `/api/generate` 스트리밍 연동, LLM 호출부 인터페이스 분리 | `backend/app/providers/` |
-| FastAPI | HTTP API, SSE, WebSocket, 미들웨어, 의존성 기반 인증 | `backend/app/api/`, `backend/app/main.py` |
-| SSE 스트리밍 | `POST /api/v1/chat/stream`에서 Ollama 토큰 응답을 SSE 이벤트로 변환 | `backend/app/api/routes/chat.py` |
-| WebSocket 스트리밍 | `WS /api/v1/ws/chat`에서 프롬프트별 토큰 스트림 응답 | `backend/app/api/routes/ws.py` |
-| Redis 캐싱 | 프롬프트와 context 해시 기반 캐시 키 생성, 캐시 적중 시 LLM 호출 생략 | `backend/app/cache/`, `backend/app/jobs/service.py` |
-| Celery 비동기 작업 | `POST /api/v1/jobs/chat`, `GET /api/v1/jobs/{job_id}` | `backend/app/jobs/`, `backend/app/tasks/` |
-| 레거시 시스템 연동 | Spring Boot Mock ERP/PDM/Groupware, FastAPI LegacyContextClient | `legacy-mock-service/`, `backend/app/legacy/` |
-| JWT/RBAC | 샘플 사용자 로그인, USER/ADMIN 접근 제어 | `backend/app/auth/` |
-| 감사 로그 | 로그인/권한/LLM/레거시 이벤트를 PostgreSQL `audit_logs`에 저장 | `backend/app/audit/` |
-| Prometheus/Grafana | HTTP/LLM/캐시/감사 로그/WebSocket 지표 수집, 대시보드 자동 구성 | `backend/app/core/metrics.py`, `monitoring/` |
-| Docker Compose | API, worker, PostgreSQL, Redis, Prometheus, Grafana, 레거시 서비스 구성 | `docker-compose.yml` |
-| 테스트 | pytest, 대체 객체, SQLite 테스트 DB | `backend/tests/` |
+| 영역 | 구현 내용 |
+| --- | --- |
+| LLM 응답 | 일반 응답, SSE 스트리밍, WebSocket 스트리밍 |
+| 레거시 연동 | Mock ERP/PDM/Groupware 조회, 프롬프트 context 합성 |
+| 비동기 처리 | Celery 작업 생성/상태 조회, Redis 기반 결과 저장 |
+| 인증/감사 | JWT 로그인, USER/ADMIN 권한 제어, PostgreSQL 감사 로그 |
+| 모니터링 | Prometheus 지표 수집, Grafana 대시보드 |
+| 실행 환경 | Docker Compose 기반 로컬 통합 실행 |
+
+## 기술별 역할
+
+| 기술 | 역할 |
+| --- | --- |
+| FastAPI | LLM Gateway의 HTTP/SSE/WebSocket API 계층 구성, 비동기 요청 처리 검증 |
+| Ollama | 로컬 LLM 추론 서버 연동, 일반 응답과 토큰 스트리밍 응답 검증 |
+| SSE | HTTP 연결 기반 단방향 토큰 스트리밍 응답 제공 |
+| WebSocket | 연결 유지 기반 실시간 메시지 송수신 구조 검증 |
+| Redis | LLM 응답 캐싱, Celery broker, Celery result backend 역할 수행 |
+| Celery | 장시간 LLM 요청의 비동기 처리, job 생성/상태 조회 구조 구현 |
+| PostgreSQL | 감사 로그 영속 저장, 요청 이력 추적 기반 구성 |
+| JWT/RBAC | USER/ADMIN 역할별 접근 제어, 권한 실패 감사 로그 검증 |
+| Spring Boot | Mock ERP/PDM/Groupware 서비스 분리, 외부 레거시 시스템 호출 구조 모사 |
+| Prometheus/Grafana | API/LLM/캐시/감사 로그/WebSocket 지표 수집 및 시각화 |
+| Docker Compose | FastAPI, Spring Boot, Redis, PostgreSQL, Ollama, Prometheus, Grafana 통합 실행 환경 구성 |
 
 ## 실행 방법
 
@@ -255,8 +265,8 @@ python -m pytest
 
 ## 설계 포인트
 
-- LLM 호출부를 `LLMProvider` 인터페이스로 분리해 Ollama 외 제공자로 확장 가능하게 구성했습니다.
-- 레거시 연동은 FastAPI Gateway와 Spring Boot Mock Service를 분리해 실제 사내 시스템 연동 구조를 모사했습니다.
-- Ollama에서 생성되는 토큰을 FastAPI가 받아 SSE/WebSocket 응답으로 실시간 전달하도록 구현했습니다.
-- 감사 로그는 PostgreSQL에 저장하고, 테스트에서는 SQLite in-memory DB로 같은 저장 로직을 검증합니다.
-- Prometheus는 API 프로세스와 worker 프로세스의 지표 엔드포인트를 각각 수집하도록 구성했습니다.
+- `LLMProvider` 인터페이스 분리를 통한 LLM 제공자 교체 가능 구조
+- FastAPI Gateway와 Spring Boot Mock Service 분리를 통한 레거시 연동 구조 모사
+- Ollama 토큰 응답을 SSE/WebSocket 응답 형식으로 변환
+- PostgreSQL 감사 로그 저장 및 SQLite 기반 테스트 검증
+- API와 worker 지표를 분리 수집하는 Prometheus 구성
