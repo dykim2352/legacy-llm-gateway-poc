@@ -28,12 +28,13 @@ async def websocket_chat(
     websocket: WebSocket,
     provider: LLMProvider = Depends(get_llm_provider),
 ) -> None:
+    await websocket.accept()
+    WEBSOCKET_CONNECTIONS_TOTAL.labels(path="/api/v1/ws/chat").inc()
+
     current_user = await _authenticate_websocket(websocket)
     if current_user is None:
         return
 
-    await websocket.accept()
-    WEBSOCKET_CONNECTIONS_TOTAL.labels(path="/api/v1/ws/chat").inc()
     logger.info(
         "websocket_connected path=/api/v1/ws/chat user=%s client=%s",
         current_user.username,
@@ -130,7 +131,7 @@ async def _authenticate_websocket(websocket: WebSocket) -> User | None:
     if not token:
         message = "Missing bearer token."
         _record_websocket_authz_failure(websocket, None, message)
-        await websocket.close(code=status.WS_1008_POLICY_VIOLATION, reason=message)
+        await _close_websocket_auth_failure(websocket, message)
         return None
 
     try:
@@ -138,17 +139,23 @@ async def _authenticate_websocket(websocket: WebSocket) -> User | None:
     except ValueError as exc:
         message = str(exc)
         _record_websocket_authz_failure(websocket, None, message)
-        await websocket.close(code=status.WS_1008_POLICY_VIOLATION, reason=message[:123])
+        await _close_websocket_auth_failure(websocket, message)
         return None
 
     user = get_user(payload["sub"])
     if user is None or user.role not in {Role.USER, Role.ADMIN}:
         message = "User does not have permission to access this resource."
         _record_websocket_authz_failure(websocket, payload["sub"], message)
-        await websocket.close(code=status.WS_1008_POLICY_VIOLATION, reason=message)
+        await _close_websocket_auth_failure(websocket, message)
         return None
 
     return user
+
+
+async def _close_websocket_auth_failure(websocket: WebSocket, message: str) -> None:
+    await websocket.send_json({"type": "error", "message": message})
+    await websocket.close(code=status.WS_1008_POLICY_VIOLATION, reason=message[:123])
+    logger.info("websocket_closed code=%s reason=%s", status.WS_1008_POLICY_VIOLATION, message)
 
 
 def _record_websocket_authz_failure(

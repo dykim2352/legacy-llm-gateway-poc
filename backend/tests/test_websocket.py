@@ -88,11 +88,15 @@ def test_websocket_chat_rejects_invalid_message() -> None:
 def test_websocket_chat_rejects_missing_token() -> None:
     client = TestClient(create_app())
 
-    try:
-        with client.websocket_connect("/api/v1/ws/chat"):
+    with client.websocket_connect("/api/v1/ws/chat") as websocket:
+        assert websocket.receive_json() == {"type": "error", "message": "Missing bearer token."}
+
+        try:
+            websocket.receive_json()
+        except WebSocketDisconnect as exc:
+            assert exc.code == 1008
+        else:
             raise AssertionError("Expected WebSocketDisconnect")
-    except WebSocketDisconnect as exc:
-        assert exc.code == 1008
 
 
 def _ws_url() -> str:
